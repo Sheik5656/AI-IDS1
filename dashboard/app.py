@@ -46,6 +46,9 @@ if 'file_analysis_results' not in st.session_state:
     
 if 'last_analysis' not in st.session_state:
     st.session_state.last_analysis = None
+    
+if 'api_key_provided' not in st.session_state:
+    st.session_state.api_key_provided = False
 
 # Custom CSS
 st.markdown("""
@@ -151,7 +154,11 @@ with tab1:
         if api_key:
             st.session_state.analyzer.api_key = api_key
             st.session_state.analyzer.mock_mode = False
-            st.success("✅ API Key set")
+            st.session_state.api_key_provided = True
+            st.success("✅ API Key set - Real AI analysis enabled!")
+        else:
+            st.session_state.api_key_provided = False
+            st.info("ℹ️ No API key - Using mock analysis")
         
         st.divider()
         
@@ -285,8 +292,8 @@ with tab2:
         st.markdown('<div class="file-upload-area">', unsafe_allow_html=True)
         uploaded_file = st.file_uploader(
             "Choose a file to analyze", 
-            type=['js', 'php', 'py', 'ps1', 'sql', 'log', 'txt', 'csv', 'exe', 'dll', 'pdf', 'doc', 'zip', 'pcap'],
-            help="Upload any file type for analysis. JavaScript, PHP, Python, PowerShell, SQL files will be analyzed for malicious patterns."
+            type=['js', 'php', 'py', 'ps1', 'sql', 'log', 'txt', 'csv', 'exe', 'dll', 'pdf', 'doc', 'zip', 'pcap', 'apk'],
+            help="Upload any file type for analysis. APK files will be analyzed for Android malware."
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -302,8 +309,8 @@ with tab2:
             analysis_result = st.session_state.file_analyzer.analyze_file(tmp_path, uploaded_file.name)
             st.session_state.file_analysis_results.append(analysis_result)
             
-            # Also analyze with DeepSeek
-            deepseek_analysis = st.session_state.analyzer.analyze_alert({
+            # Create a combined result for DeepSeek
+            deepseek_input = {
                 'timestamp': analysis_result['timestamp'],
                 'src_ip': 'FILE_UPLOAD',
                 'dst_ip': 'LOCAL_SYSTEM',
@@ -311,8 +318,21 @@ with tab2:
                 'confidence': analysis_result['risk_score'] / 100,
                 'attack_type': analysis_result.get('attack_summary', 'Unknown'),
                 'features': analysis_result
-            })
-            st.session_state['last_analysis'] = deepseek_analysis
+            }
+            
+            # Only analyze with DeepSeek if API key is provided
+            if st.session_state.api_key_provided:
+                with st.spinner("🤖 Getting AI analysis..."):
+                    deepseek_analysis = st.session_state.analyzer.analyze_alert(deepseek_input)
+                    st.session_state['last_analysis'] = deepseek_analysis
+            else:
+                # Store the file analysis result for display
+                st.session_state['last_analysis'] = {
+                    'threat_level': analysis_result['risk_level'],
+                    'attack_type': analysis_result.get('attack_summary', 'Unknown'),
+                    'context': f"This file has been analyzed by the local detection engine. Risk score: {analysis_result['risk_score']}/100. Detected {len(analysis_result.get('suspicious_patterns', []))} suspicious patterns.",
+                    'prevention': "Enter a DeepSeek API key in the sidebar to get AI-powered analysis and specific prevention steps."
+                }
         
         # Display results
         col1, col2, col3 = st.columns(3)
@@ -389,6 +409,7 @@ with tab3:
             {'Pattern Type': 'SQL Injection', 'Example': 'UNION SELECT, DROP TABLE', 'Severity': 'MEDIUM'},
             {'Pattern Type': 'Python Malware', 'Example': 'subprocess, eval(), __import__', 'Severity': 'HIGH'},
             {'Pattern Type': 'PowerShell Malware', 'Example': 'IEX, DownloadString, Invoke-Expression', 'Severity': 'HIGH'},
+            {'Pattern Type': 'APK Malware', 'Example': 'Excessive permissions, hardcoded secrets', 'Severity': 'HIGH'},
         ])
         st.dataframe(patterns_df, use_container_width=True)
     
@@ -420,19 +441,31 @@ with tab3:
         st.markdown(f"**Total Alerts:** {stats['alert_count']}")
         st.markdown(f"**Unique IPs Seen:** {stats['unique_ips']}")
 
-# ===== DeepSeek Analysis Display (FIXED - NO ACTIONS, NO N/A) =====
+# ===== DeepSeek AI Analysis Display (FIXED - Shows correct threat level) =====
 if 'last_analysis' in st.session_state and st.session_state.last_analysis:
     st.markdown("---")
     st.markdown("## 🤖 DeepSeek AI Analysis Results")
     
     analysis = st.session_state.last_analysis
     
+    # Get the correct threat level from the file analysis if available
+    if uploaded_file and 'analysis_result' in locals():
+        correct_threat = analysis_result['risk_level']
+    else:
+        correct_threat = analysis.get('threat_level', 'MEDIUM')
+    
+    # Show API key status
+    if st.session_state.api_key_provided:
+        st.success("✅ **Real AI Analysis** (Using DeepSeek API)")
+    else:
+        st.info("ℹ️ **Mock Analysis** (Add API key for real AI)")
+    
     # Create columns for better layout
     col1, col2 = st.columns(2)
     
     with col1:
-        # Threat Level with color
-        threat = analysis.get('threat_level', 'MEDIUM')
+        # Threat Level with color - USE CORRECT THREAT LEVEL
+        threat = correct_threat
         if threat == 'CRITICAL':
             st.error(f"### ⚠️ THREAT LEVEL: {threat}")
         elif threat == 'HIGH':
@@ -476,7 +509,10 @@ if 'last_analysis' in st.session_state and st.session_state.last_analysis:
     
     # Simple footer
     st.markdown("---")
-    st.caption("Follow these prevention steps to protect your system")
+    if st.session_state.api_key_provided:
+        st.caption("🤖 AI-powered analysis using DeepSeek API")
+    else:
+        st.caption("ℹ️ Mock analysis - Add DeepSeek API key in sidebar for real AI analysis")
 
 # Auto-refresh for live detection
 if st.session_state.detection_active:
