@@ -793,4 +793,21 @@ with tab3:
             critical = sum(1 for r in report_list if r['Risk Level'] == 'CRITICAL')
             st.metric("Critical", critical)
         with col3:
-            high = sum(1
+            high = sum(1 for r in report_list if r['Risk Level'] == 'HIGH')
+            st.metric("High", high)
+        with col4:
+            medium = sum(1 for r in report_list if r['Risk Level'] == 'MEDIUM')
+            st.metric("Medium", medium)
+        
+        # Individual file reports
+        st.markdown("### 📄 Individual File Reports")
+        for i, result in enumerate(st.session_state.file_analysis_results[-5:]):
+            with st.expander(f"{result['filename']} - {result['risk_level']} (Score: {result['risk_score']})"):
+                st.json(result)
+    else:
+        st.info("No analysis results yet. Upload files in the File Upload Analysis tab.")
+
+# Auto-refresh for live detection
+if st.session_state.detection_active:
+    time.sleep(2)
+    st.rerun()
