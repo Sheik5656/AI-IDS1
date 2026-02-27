@@ -115,7 +115,7 @@ st.markdown("""
 # Header
 st.markdown('<div class="main-header">', unsafe_allow_html=True)
 st.title("🛡️ AI-Powered Intrusion Detection System")
-st.markdown("*Real-time network monitoring + File analysis with DeepSeek AI*")
+st.markdown("*Real-time network monitoring + File analysis*")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Create tabs for different features
@@ -155,10 +155,10 @@ with tab1:
             st.session_state.analyzer.api_key = api_key
             st.session_state.analyzer.mock_mode = False
             st.session_state.api_key_provided = True
-            st.success("✅ API Key set - Real AI analysis enabled!")
+            st.success("✅ API Key set")
         else:
             st.session_state.api_key_provided = False
-            st.info("ℹ️ No API key - Using mock analysis")
+            st.info("ℹ️ No API key")
         
         st.divider()
         
@@ -258,7 +258,7 @@ with tab1:
                 level = "medium"
                 level_text = "MEDIUM"
             
-            attack_type = alert.get('attack_type', 'Intrusion Detection')
+            attack_type = alert.get('attack_type', 'Intrusion')
             
             col1, col2, col3 = st.columns([3, 2, 1])
             
@@ -274,7 +274,7 @@ with tab1:
             with col3:
                 st.markdown(f"**{level_text}**")
                 if st.button(f"🔍 Analyze", key=f"analyze_{i}"):
-                    with st.spinner("Analyzing with DeepSeek..."):
+                    with st.spinner("Analyzing..."):
                         analysis = st.session_state.analyzer.analyze_alert(alert)
                         st.session_state['last_analysis'] = analysis
             
@@ -285,15 +285,15 @@ with tab1:
 # ===== TAB 2: File Upload Analysis =====
 with tab2:
     st.markdown("## 📁 Malicious File Detection")
-    st.markdown("Upload files to analyze for malware, webshells, and suspicious patterns")
+    st.markdown("Upload files to analyze for malware and suspicious patterns")
     
     # File uploader
     with st.container():
         st.markdown('<div class="file-upload-area">', unsafe_allow_html=True)
         uploaded_file = st.file_uploader(
             "Choose a file to analyze", 
-            type=['js', 'php', 'py', 'ps1', 'sql', 'log', 'txt', 'csv', 'exe', 'dll', 'pdf', 'doc', 'zip', 'pcap', 'apk'],
-            help="Upload any file type for analysis. APK files will be analyzed for Android malware."
+            type=['js', 'php', 'py', 'ps1', 'sql', 'log', 'txt', 'csv', 'exe', 'dll', 'pdf', 'doc', 'zip', 'pcap'],
+            help="Upload any file type for analysis."
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -304,34 +304,32 @@ with tab2:
             tmp_path = tmp_file.name
         
         # Show analysis progress
-        with st.spinner("🔍 Analyzing file for malicious content..."):
+        with st.spinner("🔍 Analyzing file..."):
             # Analyze the file
             analysis_result = st.session_state.file_analyzer.analyze_file(tmp_path, uploaded_file.name)
             st.session_state.file_analysis_results.append(analysis_result)
             
-            # Create a combined result for DeepSeek
-            deepseek_input = {
-                'timestamp': analysis_result['timestamp'],
-                'src_ip': 'FILE_UPLOAD',
-                'dst_ip': 'LOCAL_SYSTEM',
-                'protocol': 'FILE',
-                'confidence': analysis_result['risk_score'] / 100,
-                'attack_type': analysis_result.get('attack_summary', 'Unknown'),
-                'features': analysis_result
-            }
+            # Store for display
+            st.session_state['current_file_result'] = analysis_result
             
-            # Only analyze with DeepSeek if API key is provided
+            # Only do DeepSeek analysis if API key is provided
             if st.session_state.api_key_provided:
-                with st.spinner("🤖 Getting AI analysis..."):
-                    deepseek_analysis = st.session_state.analyzer.analyze_alert(deepseek_input)
-                    st.session_state['last_analysis'] = deepseek_analysis
+                deepseek_input = {
+                    'timestamp': analysis_result['timestamp'],
+                    'src_ip': 'FILE_UPLOAD',
+                    'dst_ip': 'LOCAL_SYSTEM',
+                    'protocol': 'FILE',
+                    'confidence': analysis_result['risk_score'] / 100,
+                    'features': analysis_result
+                }
+                deepseek_analysis = st.session_state.analyzer.analyze_alert(deepseek_input)
+                st.session_state['last_analysis'] = deepseek_analysis
             else:
-                # Store the file analysis result for display
+                # Simple local result
                 st.session_state['last_analysis'] = {
                     'threat_level': analysis_result['risk_level'],
-                    'attack_type': analysis_result.get('attack_summary', 'Unknown'),
-                    'context': f"This file has been analyzed by the local detection engine. Risk score: {analysis_result['risk_score']}/100. Detected {len(analysis_result.get('suspicious_patterns', []))} suspicious patterns.",
-                    'prevention': "Enter a DeepSeek API key in the sidebar to get AI-powered analysis and specific prevention steps."
+                    'context': f"File analysis complete. Risk score: {analysis_result['risk_score']}/100. Found {len(analysis_result.get('suspicious_patterns', []))} suspicious patterns.",
+                    'prevention': "Add DeepSeek API key for detailed prevention steps."
                 }
         
         # Display results
@@ -355,9 +353,8 @@ with tab2:
             st.markdown("### File Details")
             st.markdown(f"**Filename:** {analysis_result['filename']}")
             st.markdown(f"**Size:** {analysis_result['file_size']:,} bytes")
-            st.markdown(f"**Type:** {analysis_result['file_type'].get('mime_type', 'Unknown')}")
             st.markdown(f"**Extension:** {analysis_result['file_type'].get('extension', 'Unknown')}")
-            st.markdown(f"**Entropy:** {analysis_result['entropy']:.2f} (higher = more suspicious)")
+            st.markdown(f"**Entropy:** {analysis_result['entropy']:.2f}")
         
         with col3:
             st.markdown("### File Hashes")
@@ -365,156 +362,123 @@ with tab2:
             st.markdown(f"**SHA1:** `{analysis_result['hash']['sha1'][:16]}...`")
             st.markdown(f"**SHA256:** `{analysis_result['hash']['sha256'][:16]}...`")
         
-        # Suspicious patterns found
+        # Suspicious patterns
         if analysis_result['suspicious_patterns']:
-            st.markdown("### 🔍 Suspicious Patterns Detected")
+            st.markdown("### 🔍 Suspicious Patterns")
             patterns_df = pd.DataFrame(analysis_result['suspicious_patterns'])
             st.dataframe(patterns_df, use_container_width=True)
         
-        # Clean up temp file
+        # Clean up
         os.unlink(tmp_path)
     
-    # Show analysis history
+    # History
     if st.session_state.file_analysis_results:
-        st.markdown("### 📋 Recent File Analyses")
+        st.markdown("### 📋 Recent Analyses")
         history_df = pd.DataFrame([
             {
                 'Time': r['timestamp'][11:19],
                 'Filename': r['filename'],
                 'Risk Level': r['risk_level'],
-                'Risk Score': r['risk_score'],
-                'Size': f"{r['file_size']/1024:.1f} KB"
+                'Score': r['risk_score']
             }
-            for r in st.session_state.file_analysis_results[-10:]
+            for r in st.session_state.file_analysis_results[-5:]
         ])
         st.dataframe(history_df, use_container_width=True)
 
 # ===== TAB 3: Threat Intelligence =====
 with tab3:
-    st.markdown("## 🌐 Threat Intelligence Dashboard")
+    st.markdown("## 🌐 Threat Intelligence")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("### Known Malware Hashes")
-        st.markdown("""
-        - **EICAR Test Virus**: `275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f`
-        - More hashes can be added to the database
-        """)
+        st.markdown("### Known Hashes")
+        st.markdown("- **EICAR Test**: `275a021b...`")
         
-        st.markdown("### Suspicious Patterns Database")
+        st.markdown("### Patterns")
         patterns_df = pd.DataFrame([
-            {'Pattern Type': 'JavaScript Malware', 'Example': 'eval(), atob(), unescape()', 'Severity': 'HIGH'},
-            {'Pattern Type': 'PHP WebShell', 'Example': 'system(), exec(), eval()', 'Severity': 'CRITICAL'},
-            {'Pattern Type': 'SQL Injection', 'Example': 'UNION SELECT, DROP TABLE', 'Severity': 'MEDIUM'},
-            {'Pattern Type': 'Python Malware', 'Example': 'subprocess, eval(), __import__', 'Severity': 'HIGH'},
-            {'Pattern Type': 'PowerShell Malware', 'Example': 'IEX, DownloadString, Invoke-Expression', 'Severity': 'HIGH'},
-            {'Pattern Type': 'APK Malware', 'Example': 'Excessive permissions, hardcoded secrets', 'Severity': 'HIGH'},
+            {'Type': 'SQL Injection', 'Pattern': 'UNION SELECT, DROP TABLE'},
+            {'Type': 'PHP Shell', 'Pattern': 'system(), eval()'},
+            {'Type': 'JavaScript', 'Pattern': 'eval(), atob()'}
         ])
         st.dataframe(patterns_df, use_container_width=True)
     
     with col2:
-        st.markdown("### Detection Statistics")
-        
-        # File analysis stats
-        file_count = len(st.session_state.file_analysis_results)
-        if file_count > 0:
-            critical_count = sum(1 for r in st.session_state.file_analysis_results if r['risk_level'] == 'CRITICAL')
-            high_count = sum(1 for r in st.session_state.file_analysis_results if r['risk_level'] == 'HIGH')
-            medium_count = sum(1 for r in st.session_state.file_analysis_results if r['risk_level'] == 'MEDIUM')
-            low_count = sum(1 for r in st.session_state.file_analysis_results if r['risk_level'] == 'LOW')
+        st.markdown("### Statistics")
+        if st.session_state.file_analysis_results:
+            critical = sum(1 for r in st.session_state.file_analysis_results if r['risk_level'] == 'CRITICAL')
+            high = sum(1 for r in st.session_state.file_analysis_results if r['risk_level'] == 'HIGH')
+            medium = sum(1 for r in st.session_state.file_analysis_results if r['risk_level'] == 'MEDIUM')
+            low = sum(1 for r in st.session_state.file_analysis_results if r['risk_level'] == 'LOW')
             
             fig = go.Figure(data=[go.Bar(
                 x=['Critical', 'High', 'Medium', 'Low'],
-                y=[critical_count, high_count, medium_count, low_count],
+                y=[critical, high, medium, low],
                 marker_color=['#ff4b4b', '#ffa64b', '#ffd24b', '#4bff4b']
             )])
-            fig.update_layout(title="File Analysis Results by Risk Level")
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("No files analyzed yet. Upload files in the File Analysis tab.")
-            
-        # Live network stats
-        st.markdown("### Live Network Stats")
-        stats = st.session_state.sniffer.get_stats()
-        st.markdown(f"**Total Packets:** {stats['packet_count']}")
-        st.markdown(f"**Total Alerts:** {stats['alert_count']}")
-        st.markdown(f"**Unique IPs Seen:** {stats['unique_ips']}")
+            st.info("No data yet")
 
-# ===== DeepSeek AI Analysis Display (FIXED - Shows correct threat level) =====
+# ===== SIMPLE ANALYSIS DISPLAY =====
 if 'last_analysis' in st.session_state and st.session_state.last_analysis:
     st.markdown("---")
-    st.markdown("## 🤖 DeepSeek AI Analysis Results")
+    st.markdown("## 📊 Analysis Summary")
     
     analysis = st.session_state.last_analysis
     
-    # Get the correct threat level from the file analysis if available
-    if uploaded_file and 'analysis_result' in locals():
-        correct_threat = analysis_result['risk_level']
-    else:
-        correct_threat = analysis.get('threat_level', 'MEDIUM')
-    
-    # Show API key status
+    # Show API status
     if st.session_state.api_key_provided:
-        st.success("✅ **Real AI Analysis** (Using DeepSeek API)")
+        st.success("✅ **AI Analysis**")
     else:
-        st.info("ℹ️ **Mock Analysis** (Add API key for real AI)")
+        st.info("ℹ️ **Basic Analysis** (Add API key for detailed AI)")
     
-    # Create columns for better layout
+    # Get current file result
+    current_file = st.session_state.get('current_file_result', None)
+    
+    # Two columns
     col1, col2 = st.columns(2)
     
     with col1:
-        # Threat Level with color - USE CORRECT THREAT LEVEL
-        threat = correct_threat
-        if threat == 'CRITICAL':
-            st.error(f"### ⚠️ THREAT LEVEL: {threat}")
-        elif threat == 'HIGH':
-            st.warning(f"### ⚠️ THREAT LEVEL: {threat}")
+        # Threat level
+        if current_file:
+            threat = current_file['risk_level']
         else:
-            st.info(f"### THREAT LEVEL: {threat}")
+            threat = analysis.get('threat_level', 'MEDIUM')
+            
+        if threat == 'CRITICAL':
+            st.error(f"### ⚠️ Level: {threat}")
+        elif threat == 'HIGH':
+            st.warning(f"### ⚠️ Level: {threat}")
+        else:
+            st.info(f"### Level: {threat}")
     
     with col2:
-        # Attack Type
-        st.success(f"### 🎯 Attack Type: {analysis.get('attack_type', 'Unknown')}")
+        # File type
+        if uploaded_file:
+            ext = os.path.splitext(uploaded_file.name)[1].upper()
+            st.success(f"### 📁 Type: {ext} File")
+        else:
+            st.success(f"### ✅ Analysis Complete")
     
-    # CONTEXT SECTION
-    st.markdown("### 📋 Context - What is happening?")
-    context = analysis.get('context', 'No context available')
-    
-    # Clean and display context as bullet points
-    if isinstance(context, str):
-        # Try to split into sentences
-        sentences = context.replace('. ', '.\n').split('\n')
-        for sentence in sentences:
-            if sentence.strip():
-                clean = sentence.strip()
-                if clean and clean[0].isdigit() and '.' in clean[:3]:
-                    clean = clean[clean.find('.')+1:].strip()
-                st.markdown(f"• {clean}")
-    
-    # PREVENTION SECTION
-    st.markdown("### 🛡️ Prevention - What should you do?")
-    prevention = analysis.get('prevention', 'No prevention steps available')
-    
-    # Clean and display prevention as numbered steps
-    if isinstance(prevention, str):
-        # Try to split into steps
-        steps = prevention.replace('. ', '.\n').split('\n')
-        for i, step in enumerate(steps, 1):
-            if step.strip():
-                clean = step.strip()
-                if clean and clean[0].isdigit() and '.' in clean[:3]:
-                    clean = clean[clean.find('.')+1:].strip()
-                st.markdown(f"**{i}.** {clean}")
-    
-    # Simple footer
-    st.markdown("---")
-    if st.session_state.api_key_provided:
-        st.caption("🤖 AI-powered analysis using DeepSeek API")
+    # Simple summary
+    st.markdown("### 📋 Summary")
+    if current_file and current_file.get('suspicious_patterns'):
+        st.markdown(f"• Found {len(current_file['suspicious_patterns'])} suspicious patterns")
+        st.markdown(f"• Risk score: {current_file['risk_score']}/100")
     else:
-        st.caption("ℹ️ Mock analysis - Add DeepSeek API key in sidebar for real AI analysis")
+        context = analysis.get('context', 'Analysis complete')
+        st.markdown(f"• {context[:150]}...")
+    
+    # Prevention if API key
+    if st.session_state.api_key_provided and 'prevention' in analysis:
+        st.markdown("### 🛡️ Prevention")
+        prevention = analysis.get('prevention', '')
+        first_step = prevention.split('.')[0] if prevention else ''
+        if first_step:
+            st.markdown(f"• {first_step}")
 
-# Auto-refresh for live detection
+# Auto-refresh
 if st.session_state.detection_active:
     time.sleep(2)
     st.rerun()
