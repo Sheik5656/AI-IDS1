@@ -380,26 +380,31 @@ with tab2:
             patterns_df = pd.DataFrame(analysis_result['suspicious_patterns'])
             st.dataframe(patterns_df, use_container_width=True)
         
-        # AI Analysis (only shows when API key is entered)
+        # AI Analysis (only shows when API key is entered) - FIXED to use the SAME risk level
         if st.session_state.api_key_provided and 'last_analysis' in st.session_state:
             st.markdown("---")
             st.markdown("## 🤖 DeepSeek AI Analysis")
             
             ai = st.session_state.last_analysis
             
-            # Threat Level
-            threat = ai.get('threat_level', analysis_result['risk_level'])
+            # FIX: Use the LOCAL analysis risk level instead of AI's threat level
+            # This ensures they match!
+            threat = analysis_result['risk_level']
+            
+            # Threat Level - using local analysis result
             if threat == 'CRITICAL':
                 st.error(f"### ⚠️ THREAT LEVEL: {threat}")
             elif threat == 'HIGH':
                 st.warning(f"### ⚠️ THREAT LEVEL: {threat}")
-            else:
+            elif threat == 'MEDIUM':
                 st.info(f"### THREAT LEVEL: {threat}")
+            else:
+                st.success(f"### THREAT LEVEL: {threat}")
             
-            # Attack Type
+            # Attack Type from AI
             st.success(f"### 🎯 Attack Type: {ai.get('attack_type', 'Unknown')}")
             
-            # Context
+            # Context from AI
             st.markdown("### 📋 Context")
             context = ai.get('context', 'No context available')
             if isinstance(context, str):
@@ -411,7 +416,7 @@ with tab2:
                             clean = clean[clean.find('.')+1:].strip()
                         st.markdown(f"• {clean}")
             
-            # Prevention
+            # Prevention from AI
             st.markdown("### 🛡️ Prevention")
             prevention = ai.get('prevention', 'No prevention steps available')
             if isinstance(prevention, str):
