@@ -34,6 +34,10 @@ st.set_page_config(
     layout="wide"
 )
 
+# ===== YOUR DEEPSEEK API KEY - HARDCODED AND HIDDEN =====
+DEEPSEEK_API_KEY = "sk-4fc8743996e04434baa71ecd1cd973c3"
+# =======================================================
+
 # Initialize session state
 if 'sniffer' not in st.session_state:
     st.session_state.sniffer = PacketSniffer()
@@ -43,7 +47,7 @@ if 'file_analyzer' not in st.session_state:
     st.session_state.file_analyzer = FileAnalyzer()
     
 if 'analyzer' not in st.session_state:
-    st.session_state.analyzer = DeepSeekAnalyzer()
+    st.session_state.analyzer = DeepSeekAnalyzer(api_key=DEEPSEEK_API_KEY)
     
 if 'detection_active' not in st.session_state:
     st.session_state.detection_active = False
@@ -56,9 +60,6 @@ if 'file_analysis_results' not in st.session_state:
     
 if 'last_analysis' not in st.session_state:
     st.session_state.last_analysis = None
-    
-if 'api_key_provided' not in st.session_state:
-    st.session_state.api_key_provided = False
 
 # Custom CSS
 st.markdown("""
@@ -138,12 +139,23 @@ st.markdown("""
         justify-content: center;
         margin: 1rem 0;
     }
+    .ai-badge {
+        background: linear-gradient(135deg, #1a3a2a, #0f2a1f);
+        color: #f0b823;
+        padding: 0.2rem 1rem;
+        border-radius: 20px;
+        display: inline-block;
+        border: 1px solid #f0b823;
+        font-size: 0.8rem;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # Header
 st.markdown('<div class="main-header">', unsafe_allow_html=True)
 st.title("🛡️ AI-Powered Intrusion Detection System")
+st.markdown("### 🤖 DeepSeek AI Analysis Active")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Create tabs
@@ -173,17 +185,6 @@ with tab1:
                 st.session_state.sniffer.stop_sniffing()
                 st.session_state.detection_active = False
                 st.warning("🛑 Detection stopped")
-        
-        st.divider()
-        
-        st.markdown("### 🤖 DeepSeek AI Settings")
-        api_key = st.text_input("API Key", type="password", placeholder="Enter API key")
-        if api_key:
-            st.session_state.analyzer.api_key = api_key
-            st.session_state.analyzer.mock_mode = False
-            st.session_state.api_key_provided = True
-        else:
-            st.session_state.api_key_provided = False
         
         st.divider()
         
@@ -306,7 +307,7 @@ with tab1:
 # ===== TAB 2: File Upload Analysis =====
 with tab2:
     st.markdown("## 📁 Malicious File Detection")
-    st.markdown("Upload files to analyze for malware, webshells, and suspicious patterns")
+    st.markdown('<span class="ai-badge">🤖 DeepSeek AI Active</span>', unsafe_allow_html=True)
     
     # File uploader
     with st.container():
@@ -331,18 +332,17 @@ with tab2:
             st.session_state.file_analysis_results.append(analysis_result)
             st.session_state['current_file'] = analysis_result
             
-            # Get AI analysis if API key provided
-            if st.session_state.api_key_provided:
-                deepseek_input = {
-                    'timestamp': analysis_result['timestamp'],
-                    'src_ip': 'FILE_UPLOAD',
-                    'dst_ip': 'LOCAL_SYSTEM',
-                    'protocol': 'FILE',
-                    'confidence': analysis_result['risk_score'] / 100,
-                    'features': analysis_result
-                }
-                ai_result = st.session_state.analyzer.analyze_alert(deepseek_input)
-                st.session_state['last_analysis'] = ai_result
+            # Get AI analysis (API key is already set in the analyzer)
+            deepseek_input = {
+                'timestamp': analysis_result['timestamp'],
+                'src_ip': 'FILE_UPLOAD',
+                'dst_ip': 'LOCAL_SYSTEM',
+                'protocol': 'FILE',
+                'confidence': analysis_result['risk_score'] / 100,
+                'features': analysis_result
+            }
+            ai_result = st.session_state.analyzer.analyze_alert(deepseek_input)
+            st.session_state['last_analysis'] = ai_result
         
         # Display results
         col1, col2, col3 = st.columns(3)
@@ -380,18 +380,17 @@ with tab2:
             patterns_df = pd.DataFrame(analysis_result['suspicious_patterns'])
             st.dataframe(patterns_df, use_container_width=True)
         
-        # AI Analysis (only shows when API key is entered) - FIXED to use the SAME risk level
-        if st.session_state.api_key_provided and 'last_analysis' in st.session_state:
+        # AI Analysis - ALWAYS SHOWS NOW (API key is hardcoded)
+        if 'last_analysis' in st.session_state:
             st.markdown("---")
             st.markdown("## 🤖 DeepSeek AI Analysis")
             
             ai = st.session_state.last_analysis
             
-            # FIX: Use the LOCAL analysis risk level instead of AI's threat level
-            # This ensures they match!
+            # Use the LOCAL analysis risk level to match
             threat = analysis_result['risk_level']
             
-            # Threat Level - using local analysis result
+            # Threat Level
             if threat == 'CRITICAL':
                 st.error(f"### ⚠️ THREAT LEVEL: {threat}")
             elif threat == 'HIGH':
